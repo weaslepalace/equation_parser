@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <math.h>
+#include <stdbool.h>
+#include <string.h>
 
 #define MAXOPSTACK  64
 #define MAXNUMSTACK 64
@@ -89,228 +91,228 @@ operation_s *get_op(char ch)
 	return NULL;
 }
 
-typedef struct {
-	operation_s *opStack[MAXOPSTACK];
-	int opStackDepth = 0;
-
-	double numStack[MAXNUMSTACK];
-	int numStackDepth = 0;
-} equation_s;
-
-void push_opStack(operation_s *op)
-{
-	if(opStackDepth > (MAXOPSTACK - 1))
-	{
-		fprintf(stderr, "ERROR: Operator stack overflow\n");
-		exit(EXIT_FAILURE);
-	}
-
-	opStack[opStackDepth] = op;
-	opStackDepth++;
-}
-
-operation_s *pop_opStack(void)
-{
-	if(opStackDepth == 0)
-	{
-		fprintf(stderr, "ERROR: Operator stack empty\n");
-		exit(EXIT_FAILURE);
-	}
-	opStackDepth--;
-	return opStack[opStackDepth];
-}
-
-
-void push_numStack(double num)
-{
-	if(numStackDepth > (MAXNUMSTACK - 1))
-	{
-		fprintf(stderr, "ERROR: Output stack overflow\n");
-		exit(EXIT_FAILURE);
-	}
-	numStack[numStackDepth] = num;
-	numStackDepth++;
-}
-
-double pop_numStack(void)
-{
-	if(numStackDepth == 0)
-	{
-		fprintf(stderr, "ERROR: Output stack empty\n");
-		exit(EXIT_FAILURE);
-	}
-	numStackDepth--;
-	return numStack[numStackDepth];
-}
-
-void shunt_op(equation_s *eq, operation_s *op)
-{
-	operation_s *pop;
-
-	if(op->op == '(')
-	{
-		push_opStack(eq->opStack, op);
-		return;
-	}
-	else if(op->op == ')')
-	{
-		while((opStackDepth > 0) && (opStack[opStackDepth - 1]->op != '('))
-		{
-			pop = pop_opStack(eq->opStack);
-			double n1 = pop_numStack(eq->numStack);
-			if(pop->unary == 1)
-			{
-				push_numStack(pop->eval(n1, 0));
-			}
-			else
-			{
-				double n2 = pop_numStack();
-				push_numStack(pop->eval(n2, n1));
-			}
-
-		}
-		
-		if(!(pop = pop_opStack()) || (pop->op != '('))
-		{
-			fprintf(stderr, "ERROR: Stack error. No matching '('\n");
-		}
-
-		return;	
-	}
-
-	if(op->assoc == ASSOC_RIGHT)
-	{
-		while((opStackDepth > 0) && (op->prec < opStack[opStackDepth - 1]->prec))
-		{
-			pop = pop_opStack();
-			double n1 = pop_numStack();
-			if(pop->unary == 1)
-			{	
-				push_numStack(pop->eval(n1, 0));
-			}
-			else
-			{
-				double n2 = pop_numStack();
-				push_numStack(pop->eval(n2, n1));
-			}
-		}
-	}
-	else
-	{
-		while((opStackDepth > 0) && (op->prec < opStack[opStackDepth - 1]->prec))
-		{
-			pop = pop_opStack();
-			double n1 = pop_numStack();
-			if(pop->unary == 1)
-			{	
-				push_numStack(pop->eval(n1, 0));
-			}
-			else
-			{
-				double n2 = pop_numStack();
-				push_numStack(pop->eval(n2, n1));
-			}
-		}
-	}
-	push_opStack(op);
-}
-
-equation_s *old_shunting_yard(char *expression)
-{
-	equation_s *eq = malloc(sizeof(equation_s));
-	if(eq == NULL)
-	{
-		return NULL;
-	}
-	
-	operation_s *op = NULL;
-	operation_s startOp = {'X', 0, ASSOC_NONE, 0, NULL};
-	operation_s *lastOp = &startOp;
-	char *tstart = NULL;
-	for(char *expr = expression; *expr != '\0'; expr++)
-	{
-		if(tstart == NULL)
-		{
-			op = get_op(*expr);
-			if(op != NULL)
-			{
-				if((lastOp != NULL) && ((lastOp == &startOp) || (lastOp->op != ')')))
-				{
-					if(op->op == '-')
-					{
-						op = get_op('_');
-					}
-					else if(op->op != '(')
-					{
-						fprintf(stderr, "ERROR: "
-							"Illegal use of binary operator (%c)\n", op->op);
-						exit(EXIT_FAILURE);
-					}
-				}
-				shunt_op(op);
-				lastOp = op;
-			}	
-			else if(isdigit(*expr))
-			{
-				tstart = expr;
-			}
-			else if(!isspace(*expr))
-			{
-				fprintf(stderr, "ERROR: Syntax error\n");
-				exit(EXIT_FAILURE);
-			}
-		}
-		else
-		{
-			op = get_op(*expr);
-			if(isspace(*expr))
-			{
-				push_numStack(strtod(tstart, NULL));
-				tstart = NULL;
-				lastOp = NULL;
-			}
-			else if(op != NULL)
-			{
-				push_numStack(strtod(tstart, NULL));
-				tstart = NULL;
-				shunt_op(op);
-				lastOp = op;
-			}
-			else if(!isdigit(*expr))
-			{
-				fprintf(stderr, "ERROR: Syntax error\n");
-				exit(EXIT_FAILURE);
-			}
-		}
-	}
-	if(tstart != NULL)
-	{
-		push_numStack(strtod(tstart, NULL));
-	}
-
-	while(opStackDepth > 0)
-	{
-		op = pop_opStack();
-		double n1 = pop_numStack();
-		if(op->unary == 1)
-		{
-			push_numStack(op->eval(n1, 0));
-		}
-		else
-		{
-			double n2 = pop_numStack();
-			push_numStack(op->eval(n2, n1));
-		}
-	}
-	if(numStackDepth != 1)
-	{
-		fprintf(stderr, "ERROR: "
-			"Output stack has %d unhandled elements", numStackDepth);
-		exit(EXIT_FAILURE);
-	}
-
-	return numStack[0];
-}
+//typedef struct {
+//	operation_s *opStack[MAXOPSTACK];
+//	int opStackDepth;
+//
+//	double numStack[MAXNUMSTACK];
+//	int numStackDepth;
+//} equation_s;
+//
+//void push_opStack(operation_s *op)
+//{
+//	if(opStackDepth > (MAXOPSTACK - 1))
+//	{
+//		fprintf(stderr, "ERROR: Operator stack overflow\n");
+//		exit(EXIT_FAILURE);
+//	}
+//
+//	opStack[opStackDepth] = op;
+//	opStackDepth++;
+//}
+//
+//operation_s *pop_opStack(void)
+//{
+//	if(opStackDepth == 0)
+//	{
+//		fprintf(stderr, "ERROR: Operator stack empty\n");
+//		exit(EXIT_FAILURE);
+//	}
+//	opStackDepth--;
+//	return opStack[opStackDepth];
+//}
+//
+//
+//void push_numStack(double num)
+//{
+//	if(numStackDepth > (MAXNUMSTACK - 1))
+//	{
+//		fprintf(stderr, "ERROR: Output stack overflow\n");
+//		exit(EXIT_FAILURE);
+//	}
+//	numStack[numStackDepth] = num;
+//	numStackDepth++;
+//}
+//
+//double pop_numStack(void)
+//{
+//	if(numStackDepth == 0)
+//	{
+//		fprintf(stderr, "ERROR: Output stack empty\n");
+//		exit(EXIT_FAILURE);
+//	}
+//	numStackDepth--;
+//	return numStack[numStackDepth];
+//}
+//
+//void shunt_op(equation_s *eq, operation_s *op)
+//{
+//	operation_s *pop;
+//
+//	if(op->op == '(')
+//	{
+//		push_opStack(eq->opStack, op);
+//		return;
+//	}
+//	else if(op->op == ')')
+//	{
+//		while((opStackDepth > 0) && (opStack[opStackDepth - 1]->op != '('))
+//		{
+//			pop = pop_opStack(eq->opStack);
+//			double n1 = pop_numStack(eq->numStack);
+//			if(pop->unary == 1)
+//			{
+//				push_numStack(pop->eval(n1, 0));
+//			}
+//			else
+//			{
+//				double n2 = pop_numStack();
+//				push_numStack(pop->eval(n2, n1));
+//			}
+//
+//		}
+//		
+//		if(!(pop = pop_opStack()) || (pop->op != '('))
+//		{
+//			fprintf(stderr, "ERROR: Stack error. No matching '('\n");
+//		}
+//
+//		return;	
+//	}
+//
+//	if(op->assoc == ASSOC_RIGHT)
+//	{
+//		while((opStackDepth > 0) && (op->prec < opStack[opStackDepth - 1]->prec))
+//		{
+//			pop = pop_opStack();
+//			double n1 = pop_numStack();
+//			if(pop->unary == 1)
+//			{	
+//				push_numStack(pop->eval(n1, 0));
+//			}
+//			else
+//			{
+//				double n2 = pop_numStack();
+//				push_numStack(pop->eval(n2, n1));
+//			}
+//		}
+//	}
+//	else
+//	{
+//		while((opStackDepth > 0) && (op->prec < opStack[opStackDepth - 1]->prec))
+//		{
+//			pop = pop_opStack();
+//			double n1 = pop_numStack();
+//			if(pop->unary == 1)
+//			{	
+//				push_numStack(pop->eval(n1, 0));
+//			}
+//			else
+//			{
+//				double n2 = pop_numStack();
+//				push_numStack(pop->eval(n2, n1));
+//			}
+//		}
+//	}
+//	push_opStack(op);
+//}
+//
+//equation_s *old_shunting_yard(char *expression)
+//{
+//	equation_s *eq = malloc(sizeof(equation_s));
+//	if(eq == NULL)
+//	{
+//		return NULL;
+//	}
+//	
+//	operation_s *op = NULL;
+//	operation_s startOp = {'X', 0, ASSOC_NONE, 0, NULL};
+//	operation_s *lastOp = &startOp;
+//	char *tstart = NULL;
+//	for(char *expr = expression; *expr != '\0'; expr++)
+//	{
+//		if(tstart == NULL)
+//		{
+//			op = get_op(*expr);
+//			if(op != NULL)
+//			{
+//				if((lastOp != NULL) && ((lastOp == &startOp) || (lastOp->op != ')')))
+//				{
+//					if(op->op == '-')
+//					{
+//						op = get_op('_');
+//					}
+//					else if(op->op != '(')
+//					{
+//						fprintf(stderr, "ERROR: "
+//							"Illegal use of binary operator (%c)\n", op->op);
+//						exit(EXIT_FAILURE);
+//					}
+//				}
+//				shunt_op(op);
+//				lastOp = op;
+//			}	
+//			else if(isdigit(*expr))
+//			{
+//				tstart = expr;
+//			}
+//			else if(!isspace(*expr))
+//			{
+//				fprintf(stderr, "ERROR: Syntax error\n");
+//				exit(EXIT_FAILURE);
+//			}
+//		}
+//		else
+//		{
+//			op = get_op(*expr);
+//			if(isspace(*expr))
+//			{
+//				push_numStack(strtod(tstart, NULL));
+//				tstart = NULL;
+//				lastOp = NULL;
+//			}
+//			else if(op != NULL)
+//			{
+//				push_numStack(strtod(tstart, NULL));
+//				tstart = NULL;
+//				shunt_op(op);
+//				lastOp = op;
+//			}
+//			else if(!isdigit(*expr))
+//			{
+//				fprintf(stderr, "ERROR: Syntax error\n");
+//				exit(EXIT_FAILURE);
+//			}
+//		}
+//	}
+//	if(tstart != NULL)
+//	{
+//		push_numStack(strtod(tstart, NULL));
+//	}
+//
+//	while(opStackDepth > 0)
+//	{
+//		op = pop_opStack();
+//		double n1 = pop_numStack();
+//		if(op->unary == 1)
+//		{
+//			push_numStack(op->eval(n1, 0));
+//		}
+//		else
+//		{
+//			double n2 = pop_numStack();
+//			push_numStack(op->eval(n2, n1));
+//		}
+//	}
+//	if(numStackDepth != 1)
+//	{
+//		fprintf(stderr, "ERROR: "
+//			"Output stack has %d unhandled elements", numStackDepth);
+//		exit(EXIT_FAILURE);
+//	}
+//
+//	return numStack[0];
+//}
 
 
 //char *tokenize_negate(token_queue_s *tokens, char *cursor)
@@ -398,12 +400,12 @@ typedef struct {
 	bool variable;
 	bool function;
 	bool constant;
-	bool operation;
+	bool operator;
 	char *text;
 	int length;
 }token_s;
-token_s *token_prototype = {
-	.variable = false, .function = false, .operation = false,
+token_s token_prototype = {
+	.variable = false, .function = false, .constant = false, .operator = false, 
 	.text = "", .length = 0
 };
 
@@ -421,7 +423,8 @@ token_s *parse_name(char **cursor)
 	memcpy(token, &token_prototype, sizeof(token_s));
 
 	//Verify that all characters in the token are valid
-	for(char *c = *cursor; (*c != '\0') || !isspace(*c); c++)
+	char *c = *cursor;
+	for( ; (*c != '\0') && !isspace(*c); c++)
 	{
 		//The existence of parenthesis signals that the token is a function name
 		//	and that the token has ended.
@@ -435,16 +438,16 @@ token_s *parse_name(char **cursor)
 			}
 			
 			//Do not include '(' as part of the function name
-			*cursor = c - 1;
-			token->text = cursor;
+			token->text = *cursor;
+			*cursor = c;
 			token->function = true;
 			return token;
 		}
 
 		//The following characters are valid: A-Za-z.[]0-9 
-		else if((*c >= 'a') && (*c <= 'z') ||
+		else if(((*c >= 'a') && (*c <= 'z')) ||
 			((*c >= 'A') && (*c <= 'Z')) ||
-			((*c >= '0') && (* <= '9')))
+			((*c >= '0') && (*c <= '9')))
 		{
 			//The character is valid
 		}
@@ -469,8 +472,8 @@ token_s *parse_name(char **cursor)
 
 	//Token is a valid variable name
 	//Do not include the termator or space in the token
-	*cursor = c - 1;
 	token->text = *cursor;
+	*cursor = c;
 	token->variable = true;
 	return token;
 }
@@ -498,7 +501,8 @@ token_s *parse_number(char **cursor)
 	bool exponent = false;
 	bool point = false;
 	bool neg = false;
-	for(char *c = *cursor; *c != '\0' || !isspace(*c); c++)
+	char *c = *cursor;
+	for( ; (*c != '\0') && !isspace(*c); c++)
 	{
 		//Decimal digits, of course, are valid
 		if((*c >= '0') && (*c <= '9'))
@@ -561,8 +565,8 @@ token_s *parse_number(char **cursor)
 
 	//The token is a valid numeric constant
 	//Do not include the termator or space in the token
-	*cursor = c - 1;
-	token->text = cursor;
+	token->text = *cursor;
+	*cursor = c;
 	token->constant = true;
 	return token;
 }
@@ -570,58 +574,60 @@ token_s *parse_number(char **cursor)
 /**
 	Parse an operator
 */
-token_s *parse_operator(&cursor)
+token_s *parse_operator(char **cursor)
 {
 	//Allocate an empty token object
-	token_s token = malloc(sizeof(token));
+	token_s *token = malloc(sizeof(token));
 	if(token == NULL)
 	{
 		return NULL;
 	}
-	memcpy(token, token_prototype, sizeof(token_s));
+	memcpy(token, &token_prototype, sizeof(token_s));
 	
 	//Let's just assume the token is valid,
 	//	provided that the operator is followed by the necessary space
 	//	(I hate it when people don't put a space before and after operators)
-	*cursor++;
-	if(!isspace(*cursor))
-	{
-		return NULL;
-	}
+//	(*cursor)++;
+//	if(!isspace(**cursor))
+//	{
+//		return NULL;
+//	}
 
 	token->length = 1;
-	token->text = *cursor - 1;
+	token->text = *cursor;
+	(*cursor)++;
 	token->operator = true;
 	return token;
 }
 
 
-token_s *parse_token(char *cursor)
+token_s *parse_token(char **cursor)
 {
+	char c = **cursor;
 	//Check if the token is a variable name or a function name
-	if(((*cursor >= 'a') && (*cursor <= 'z')) || 
-		((*cursor >= 'A') && (*cursor <= 'Z')) ||
-		(*cursor == '_'))
+	if(((c >= 'a') && (c <= 'z')) || 
+		((c >= 'A') && (c <= 'Z')) ||
+		(c == '_'))
 	{
 		//The token is a variable name or a function name
-		return parse_name(&cursor);
+		return parse_name(cursor);
 	}
 	
 	//Check if the token is a numeric constant
-	else if((*cursor >= '0') && (*cursor <= '9'))
+	else if((c >= '0') && (c <= '9'))
 	{
 		//The token is a numeric constant
-		return parse_number(&cursor);
+		return parse_number(cursor);
 	}
 
 	//Check if the token is an operator
-	else if((*cursor == '+') || (*cursor == '-') ||
-		(*cursor == '*') || (*cursor == '/') ||
-		(*cursor == '^') || (*cursor == '%') || 
-		(*cursor == '(') || (*cursor == ')') || (*cursor == ','))
+	else if((c == '+') || (c == '-') ||
+		(c == '*') || (c == '/') ||
+		(c == '^') || (c == '%') || 
+		(c == '(') || (c == ')') || (c == ','))
 	{
 		//The token is an operator
-		return parse_operator(&cursor);
+		return parse_operator(cursor);
 	}
 
 	else	
@@ -630,23 +636,135 @@ token_s *parse_token(char *cursor)
 	}
 }
 
+/**
+	token_queue_s Object
+*/
+#define TOKEN_QUEUE_BOUNDARY	16
+typedef struct {
+	token_s **token;
+	int head;
+	int tail;
+} token_queue_s;
 
+/**
+	Enqueue a token_s object in the token queue
+*/
+int enqueue_token(token_queue_s *queue, token_s *token)
+{
+	//Evaluate if the queue has grown beyond it's boundary
+	if((queue->tail % TOKEN_QUEUE_BOUNDARY) == 0)
+	{
+		//Expand the queue to fit more tokens
+		token_s **tmp = realloc(queue->token,
+			(queue->tail + TOKEN_QUEUE_BOUNDARY) * sizeof(token_s*));
+		if(tmp == NULL)
+		{
+			return -1;
+		}
+		queue->token = tmp;
+	}
+	
+	//Add the token to the queue
+	queue->token[queue->tail] = token;
+	queue->tail++;
+
+	return 0;	
+}
+
+/**
+	Dequeue a token_s object from the token queue
+*/
+token_s *dequeue_token(token_queue_s *queue)
+{
+	//Check if the queue is empty
+	if(queue->head >= queue->tail)
+	{
+		//Reset the queue's parameters if it is empty
+		queue->head = 0;
+		queue->tail = 0;
+		if(queue->token != NULL)
+		{
+			free(queue->token);
+		}
+	}
+
+	//Remove a token from the queue and return it
+	token_s *tok = queue->token[queue->head];
+	queue->head++;
+	return tok;
+}
+
+/**
+	token_queue_s Object Constructor
+*/
+token_queue_s *new_token_queue(void)
+{
+	//Allocate an empty token_queue_s object
+	token_queue_s *queue = malloc(sizeof(token_queue_s));
+	if(queue == NULL)
+	{
+		return NULL;
+	}
+	
+	queue->token = NULL;
+	queue->tail = 0;
+	queue->head = 0;
+	
+	return queue;
+}
+
+/**
+	token_queue_s Object Destructor
+*/
+void free_token_queue(token_queue_s *queue)
+{
+	if(queue->token != NULL)
+	{
+		free(queue->token);
+	}
+	free(queue);
+}
+
+/**
+	Parse an equation into a sequeuce of tokens stored in a queue
+*/
 token_queue_s *tokenize_equation(char *expr)
 {
+	//Create a token queue to store parsed tokens
+	token_queue_s *tokenQueue = new_token_queue();
+	if(tokenQueue == NULL)
+	{
+		return NULL;
+	}
+	
+	//Parser loop
 	char *cursor = expr;
 	do 
 	{
-		if(!isspace(*cursor))
+		//Loop until the character under cursor is not white-space
+		if(isspace(*cursor))
 		{
-			cursor = parse_token(cursor);
-			if(cursor == NULL)
-			{
-				fprintf(stderr, "Unable to parse a token");
-			}
+			cursor++;
+			continue;
+		}
+
+		//Parse the token under cursor
+		token_s *token = parse_token(&cursor);
+		if(token == NULL)
+		{
+			fprintf(stderr, "Unable to parse a token\n");
+			return NULL;
+		}
+		
+		//Enqueue the token
+		if(enqueue_token(tokenQueue, token) < 0)
+		{
+			return NULL;
 		}
 	}	
 	while(*cursor != '\0');
 
+	return tokenQueue;
 }
 
 
@@ -659,7 +777,9 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
                                                               
-	printf("%f\n", old_shunting_yard(argv[1]));
+//	printf("%f\n", old_shunting_yard(argv[1]));
+
+	token_queue_s *tokenQueue = tokenize_equation(argv[1]);
 
 	return EXIT_SUCCESS;
 }
