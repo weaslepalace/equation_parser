@@ -217,6 +217,7 @@ operation_s *get_op(char ch)
 //	push_opStack(op);
 //}
 //
+
 //equation_s *old_shunting_yard(char *expression)
 //{
 //	equation_s *eq = malloc(sizeof(equation_s));
@@ -231,11 +232,15 @@ operation_s *get_op(char ch)
 //	char *tstart = NULL;
 //	for(char *expr = expression; *expr != '\0'; expr++)
 //	{
+//		//Currently between tokens
 //		if(tstart == NULL)
 //		{
 //			op = get_op(*expr);
+//
+//			//See an operator that does not follow a numeric token
 //			if(op != NULL)
 //			{
+//				
 //				if((lastOp != NULL) && ((lastOp == &startOp) || (lastOp->op != ')')))
 //				{
 //					if(op->op == '-')
@@ -252,32 +257,48 @@ operation_s *get_op(char ch)
 //				shunt_op(op);
 //				lastOp = op;
 //			}	
+//
+//			//See a digit while not tokenizing a number is the start of a token
 //			else if(isdigit(*expr))
 //			{
+//				//Begin tokenizing a number
 //				tstart = expr;
 //			}
+//			
+//			//Invalid character
 //			else if(!isspace(*expr))
 //			{
 //				fprintf(stderr, "ERROR: Syntax error\n");
 //				exit(EXIT_FAILURE);
 //			}
 //		}
+//
+//		//Currently tokenizing a number
 //		else
 //		{
 //			op = get_op(*expr);
+//
+//			//A space signals the end of a numeric token
 //			if(isspace(*expr))
 //			{
+//				//Push the number token to the stack and reset the state variables
 //				push_numStack(strtod(tstart, NULL));
 //				tstart = NULL;
 //				lastOp = NULL;
 //			}
+//
+//			//An valid operator signals the end of a numeric token
 //			else if(op != NULL)
 //			{
+//				//Push the number token to the stack and reset state variables
 //				push_numStack(strtod(tstart, NULL));
 //				tstart = NULL;
+//				//Do magic to the operator				
 //				shunt_op(op);
 //				lastOp = op;
 //			}
+//
+//			//Invalid character
 //			else if(!isdigit(*expr))
 //			{
 //				fprintf(stderr, "ERROR: Syntax error\n");
@@ -392,6 +413,102 @@ operation_s *get_op(char ch)
 //{
 //
 //}
+
+/**
+*/
+typedef struct {
+	//TODO: Write this
+} token_stack_s;
+
+/**
+*/
+token_s *pop_token(token_stack_s *stack)
+{
+	//TODO: Write this
+}
+
+/**
+*/
+int push_token(token_stack_s *stack, token_s* token)
+{
+	//TODO: Write this
+}
+
+/**
+	token_stack_s Object Constructor
+*/
+token_stack_s *new_token_stack(void)
+{
+	//TODO: Write this
+}
+
+/**
+	token_stack_s Object Destructor
+*/
+void free_token_stack(void)
+{
+	//TODO: Write this
+}
+
+/**
+*/
+equation_s *new_shunting_yard(token_queue_s *tokenQueue)
+{
+	//TODO: Create an output queue
+	//TODO: Create the operator stack	
+	for(token_s *token = dequeue_token(tokenQueue);
+		token != NULL;
+		token = dequeue_token(tokenQueue))
+	{
+
+		//Push numeric constants and variable names directly to the output queue
+		if((token.variable == true) || (token.constant == true))
+		{
+			enqueue_token(outputQueue);
+		}
+
+		//Push operator to the operator stack
+		else if((token.operator == true) || (token.function == true))
+		{
+			if(token->text[0] == ')')
+			{
+				//Find the matching '(' in the operator stack
+				while(operatorStack->token[0]->text[0] != '(')
+				{
+					//Pop all the operators between the parens into the output queue
+					token_s *topOp = pop_token(operatorStack);
+					if(topOp == NULL)
+					{
+						//Mismatched parens will cause
+						//	the operator stack to run out before finding the '('
+						return NULL;
+					}
+					enqueue_token(outputStack, topOp);
+				}
+				//Once found, pop the '(' into the void
+				pop_token(operatorStack);
+			}
+
+			//Look into the operator stack
+			//	Pop all oprators from the top that have a >= precedence
+			while(operator_prec(token->text) <
+				operator_prec(operatorStack->token[0]->text))
+
+			{
+				//Pop the top operator into the output stack
+				token_s* topOp = pop_token(operatorStack);
+				if(topOp == NULL)
+				{
+					return NULL;
+				}
+				enqueue_token(outputQueue, topOp);
+			}
+
+			//Push it real good
+			push_token(operatorStack, token);
+		}
+	}
+}
 
 /**
 	token Object
