@@ -78,6 +78,39 @@ operation_s ops[] = {
 	{.op = ')', .prec = 0,  .assoc = ASSOC_NONE,  .unary = 0, .eval = NULL}
 };
 
+/**
+	Return the operator precedence
+*/
+int operator_prec(char *text)
+{
+	//Return precedence on single-character operators
+	switch(text[0])
+	{
+		case '_':
+		return 10;
+
+		case '^':
+		return 9;
+
+		case '*':
+		return 8;
+
+		case '/':
+		return 8;
+
+		case '%':
+		return 8;
+
+		case '+':
+		return 5;
+
+		case '-':
+		return 5;
+	}
+
+	return 0;
+}
+
 
 operation_s *get_op(char ch)
 {
@@ -409,106 +442,6 @@ operation_s *get_op(char ch)
 //
 //}
 
-//char *tokenize_constant(token_queue_s *tokens, char *expr)
-//{
-//
-//}
-
-/**
-*/
-typedef struct {
-	//TODO: Write this
-} token_stack_s;
-
-/**
-*/
-token_s *pop_token(token_stack_s *stack)
-{
-	//TODO: Write this
-}
-
-/**
-*/
-int push_token(token_stack_s *stack, token_s* token)
-{
-	//TODO: Write this
-}
-
-/**
-	token_stack_s Object Constructor
-*/
-token_stack_s *new_token_stack(void)
-{
-	//TODO: Write this
-}
-
-/**
-	token_stack_s Object Destructor
-*/
-void free_token_stack(void)
-{
-	//TODO: Write this
-}
-
-/**
-*/
-equation_s *new_shunting_yard(token_queue_s *tokenQueue)
-{
-	//TODO: Create an output queue
-	//TODO: Create the operator stack	
-	for(token_s *token = dequeue_token(tokenQueue);
-		token != NULL;
-		token = dequeue_token(tokenQueue))
-	{
-
-		//Push numeric constants and variable names directly to the output queue
-		if((token.variable == true) || (token.constant == true))
-		{
-			enqueue_token(outputQueue);
-		}
-
-		//Push operator to the operator stack
-		else if((token.operator == true) || (token.function == true))
-		{
-			if(token->text[0] == ')')
-			{
-				//Find the matching '(' in the operator stack
-				while(operatorStack->token[0]->text[0] != '(')
-				{
-					//Pop all the operators between the parens into the output queue
-					token_s *topOp = pop_token(operatorStack);
-					if(topOp == NULL)
-					{
-						//Mismatched parens will cause
-						//	the operator stack to run out before finding the '('
-						return NULL;
-					}
-					enqueue_token(outputStack, topOp);
-				}
-				//Once found, pop the '(' into the void
-				pop_token(operatorStack);
-			}
-
-			//Look into the operator stack
-			//	Pop all oprators from the top that have a >= precedence
-			while(operator_prec(token->text) <
-				operator_prec(operatorStack->token[0]->text))
-
-			{
-				//Pop the top operator into the output stack
-				token_s* topOp = pop_token(operatorStack);
-				if(topOp == NULL)
-				{
-					return NULL;
-				}
-				enqueue_token(outputQueue, topOp);
-			}
-
-			//Push it real good
-			push_token(operatorStack, token);
-		}
-	}
-}
 
 /**
 	token Object
@@ -525,11 +458,52 @@ token_s token_prototype = {
 	.variable = false, .function = false, .constant = false, .operator = false, 
 	.text = "", .length = 0
 };
+token_s *new_token(void);
+void free_token(token_s *token);
+char *new_token_text(char *expr, int length);
+token_s **resize_token_array(token_s **array, int size);
+void free_token_array(token_s **array, int size);
+
 
 /**
-	Parse a function or variable name
+	token_queue_s Object
 */
-token_s *parse_name(char **cursor)
+typedef struct {
+	token_s **token;
+	int head;
+	int tail;
+} token_queue_s;
+token_queue_s *new_token_queue(void);
+int enqueue_token(token_queue_s *queue, token_s *token);
+token_s *dequeue_token(token_queue_s *queue);
+void free_token_queue(token_queue_s *queue);
+
+
+/**	
+	token_stack_s Object
+*/
+typedef struct {
+	token_s **token;
+	token_s *top;
+	int depth;	
+} token_stack_s;
+token_stack_s *new_token_stack(void);
+int push_token(token_stack_s *stack, token_s* token);
+token_s *pop_token(token_stack_s *stack);
+void free_token_stack(token_stack_s *stack);
+
+token_s *parse_name(char **cursor);
+token_s *parse_number(char **cursor);
+token_s *parse_operator(char **cursor);
+token_s *parse_token(char **cursor);
+token_queue_s *tokenize_equation(char *expr);
+
+token_queue_s *new_shunting_yard(token_queue_s *tokenQueue);
+
+/**
+	token_s Object Constructor
+*/
+token_s *new_token(void)
 {
 	//Allocate an empty token object
 	token_s *token = malloc(sizeof(token));
@@ -537,7 +511,342 @@ token_s *parse_name(char **cursor)
 	{
 		return NULL;
 	}
+
+	//Initialize the token object
 	memcpy(token, &token_prototype, sizeof(token_s));
+
+	return token;
+}
+
+/**
+	token_s Object Destructor
+*/
+void free_token(token_s *token)
+{
+	if(token->text != NULL)
+	{
+		free(token->text);
+		token->text = NULL;
+	}
+	free(token);
+}
+
+/**
+	Allocate and copy a string of text
+*/
+char *new_token_text(char *expr, int length)
+{
+	//Create an empty string
+	char *text = malloc(length + 1);
+	if(text == NULL)
+	{
+		return NULL;
+	}
+
+	//Copy text from expr to the string
+	strncpy(text, expr, length);
+	text[length] = '\0';
+	
+	return text;
+}
+
+
+/**
+	Reallocate of allocate an attay of tokens
+*/
+#define TOKEN_ARRAY_BOUNDARY	16
+token_s **resize_token_array(token_s **array, int size)
+{
+	//Evaluate if the array has grown beyond it's boundary
+	if((size % TOKEN_ARRAY_BOUNDARY) == 0)
+	{
+		//Expand the array to fit more tokens
+		token_s **tmp = realloc(array,
+			(size + TOKEN_ARRAY_BOUNDARY) * sizeof(token_s*));
+		if(tmp == NULL)
+		{
+			free_token_array(array, size);
+			return NULL;
+		}
+		array = tmp;
+	}
+	
+	return array;
+}
+
+/**
+	Free the contents of a token array
+*/
+void free_token_array(token_s **array, int size)
+{
+	for(int i = 0; i < size; i++)
+	{
+		if(array[i] != NULL)
+		{
+			free_token(array[i]);
+			array[i] = NULL;
+		}
+	}
+	free(array);
+}
+
+/**
+	Enqueue a token_s object in the token queue
+*/
+int enqueue_token(token_queue_s *queue, token_s *token)
+{
+	//Allow the queue to grow as needed
+	queue->token = resize_token_array(queue->token, queue->tail);
+	if(queue->token == NULL)
+	{
+		return -1;
+	}
+	
+	//Add the token to the queue
+	queue->token[queue->tail] = token;
+	queue->tail++;
+
+	return 0;	
+}
+
+/**
+	Dequeue a token_s object from the token queue
+*/
+token_s *dequeue_token(token_queue_s *queue)
+{
+	//Check if the queue is empty
+	if(queue->head >= queue->tail)
+	{
+		//Reset the queue's parameters if it is empty
+		queue->head = 0;
+		queue->tail = 0;
+		
+		return NULL;
+	}
+
+	//Remove a token from the queue and return it
+	token_s *tok = queue->token[queue->head];
+	queue->head++;
+	return tok;
+}
+
+/**
+	token_queue_s Object Constructor
+*/
+token_queue_s *new_token_queue(void)
+{
+	//Allocate an empty token_queue_s object
+	token_queue_s *queue = malloc(sizeof(token_queue_s));
+	if(queue == NULL)
+	{
+		return NULL;
+	}
+	
+	queue->token = NULL;
+	queue->tail = 0;
+	queue->head = 0;
+	
+	return queue;
+}
+
+/**
+	token_queue_s Object Destructor
+*/
+void free_token_queue(token_queue_s *queue)
+{
+	if(queue->token != NULL)
+	{
+		free_token_array(queue->token, queue->tail);
+		queue->token = NULL;
+	}
+	free(queue);
+}
+
+
+/**
+	Push a token object to the token stack
+*/
+int push_token(token_stack_s *stack, token_s* token)
+{
+	//Allow the stack to grow as needed
+	stack->token = resize_token_array(stack->token, stack->depth);
+	if(stack->token == NULL)
+	{
+		return -1;
+	}
+
+	//Add the token to the top of the stack
+	stack->top = token; 
+	stack->token[stack->depth] = stack->top;
+	stack->depth++;
+
+	return 0;
+}
+
+/**
+	Pop a token object from the token stack
+*/
+token_s *pop_token(token_stack_s *stack)
+{
+	//Check if the stack is empty
+	if(stack->depth <= 0)
+	{
+		stack->depth = 0;
+		stack->top = NULL;
+		return NULL;
+	}
+
+	//Remove and return the token at the top of the stack
+	token_s *tok = stack->top;
+	stack->depth--;
+	stack->top = stack->token[stack->depth];
+	return tok;
+}
+
+/**
+	token_stack_s Object Constructor
+*/
+token_stack_s *new_token_stack(void)
+{
+	//Allocate an empty token_stack_s object
+	token_stack_s *stack = malloc(sizeof(token_stack_s));
+	if(stack == NULL)
+	{
+		return NULL;
+	}
+
+	stack->token = NULL;
+	stack->top = NULL;
+	stack->depth = 0;
+
+	return stack;
+}
+
+/**
+	token_stack_s Object Destructor
+*/
+void free_token_stack(token_stack_s *stack)
+{
+	if(stack->token != NULL)
+	{
+		free_token_array(stack->token, stack->depth);
+		stack->token = NULL;
+	}
+	free(stack);	
+}
+
+/**
+	Shunting-yard implementation on tokens object
+*/
+token_queue_s *new_shunting_yard(token_queue_s *tokenQueue)
+{
+	//Create an output queue
+	token_queue_s *outputQueue = new_token_queue();
+	if(outputQueue == NULL)
+	{
+		return NULL;
+	}
+
+	//Create the operator stack	
+	token_stack_s *operatorStack = new_token_stack();
+	if(operatorStack == NULL)
+	{
+		return NULL;
+	}
+
+	//Execute the shunting-yard algorithm
+	for(token_s *token = dequeue_token(tokenQueue);
+		token != NULL;
+		token = dequeue_token(tokenQueue))
+	{
+
+		//Push numeric constants, variable names, and function names
+		//	 directly to the output queue
+		if((token->variable == true) ||
+			(token->constant == true) ||
+			(token->function == true))
+		{
+			if(enqueue_token(outputQueue, token) < 0)
+			{
+				return NULL;
+			}
+		}
+
+		//Push operator to the operator stack
+		else if((token->operator == true))
+		{
+			if(token->text[0] == ')')
+			{
+				//Find the matching '(' in the operator stack
+				while(operatorStack->top->text[0] != '(')
+				{
+					//Pop all the operators between the parens into the output queue
+					token_s *topOp = pop_token(operatorStack);
+					if(topOp == NULL)
+					{
+						//Mismatched parens will cause
+						//	the operator stack to run out before finding the '('
+						return NULL;
+					}
+					if(enqueue_token(outputQueue, topOp) < 0)
+					{
+						return NULL;
+					}
+				}
+				//Once found, pop the '(' into the void
+				pop_token(operatorStack);
+			}
+
+			//Look into the operator stack
+			//	Pop all oprators from the top that have a >= precedence
+			while((operatorStack->depth > 0) && 
+				(operator_prec(token->text) <=
+				operator_prec(operatorStack->top->text)))
+
+			{
+				//Pop the top operator into the output stack
+				token_s* topOp = pop_token(operatorStack);
+				if(topOp == NULL)
+				{
+					return NULL;
+				}
+				if(enqueue_token(outputQueue, topOp) < 0)
+				{
+					return NULL;
+				}
+			}
+
+			//Push it real good
+			push_token(operatorStack, token);
+		}
+	}
+
+	//Push the remaining tokens in the operator stack to the output queue
+	for(token_s *topOp = pop_token(operatorStack);
+		topOp != NULL;
+		topOp = pop_token(operatorStack))
+	{
+		if(enqueue_token(outputQueue, topOp) < 0)
+		{
+			return NULL;
+		}
+	}
+
+	return outputQueue;
+}
+
+
+/**
+	Parse a function or variable name
+*/
+token_s *parse_name(char **cursor)
+{
+	//Create a token object
+	token_s *token = new_token();
+	if(token == NULL)
+	{
+		return NULL;
+	}
 
 	//Verify that all characters in the token are valid
 	char *c = *cursor;
@@ -589,7 +898,7 @@ token_s *parse_name(char **cursor)
 
 	//Token is a valid variable name
 	//Do not include the termator or space in the token
-	token->text = *cursor;
+	token->text = new_token_text(*cursor, token->length);
 	*cursor = c;
 	token->variable = true;
 	return token;
@@ -606,14 +915,13 @@ token_s *parse_number(char **cursor)
 	{
 		return NULL;
 	}
-		
-	//Allocate an empty token object
-	token_s *token = malloc(sizeof(token_s));
+	
+	//Create a token object
+	token_s *token = new_token();
 	if(token == NULL)
 	{
 		return NULL;
 	}
-	memcpy(token, &token_prototype, sizeof(token_s));
 
 	bool exponent = false;
 	bool point = false;
@@ -682,7 +990,7 @@ token_s *parse_number(char **cursor)
 
 	//The token is a valid numeric constant
 	//Do not include the termator or space in the token
-	token->text = *cursor;
+	token->text = new_token_text(*cursor, token->length);
 	*cursor = c;
 	token->constant = true;
 	return token;
@@ -693,13 +1001,12 @@ token_s *parse_number(char **cursor)
 */
 token_s *parse_operator(char **cursor)
 {
-	//Allocate an empty token object
-	token_s *token = malloc(sizeof(token));
+	//Create a token object
+	token_s *token = new_token();
 	if(token == NULL)
 	{
 		return NULL;
 	}
-	memcpy(token, &token_prototype, sizeof(token_s));
 	
 	//Let's just assume the token is valid,
 	//	provided that the operator is followed by the necessary space
@@ -711,7 +1018,7 @@ token_s *parse_operator(char **cursor)
 //	}
 
 	token->length = 1;
-	token->text = *cursor;
+	token->text = new_token_text(*cursor, token->length);
 	(*cursor)++;
 	token->operator = true;
 	return token;
@@ -729,7 +1036,8 @@ token_s *parse_token(char **cursor)
 		//The token is a variable name or a function name
 		return parse_name(cursor);
 	}
-	
+
+	//TODO: Differentiate between '-' the operator, and '-' the value sign
 	//Check if the token is a numeric constant
 	else if((c >= '0') && (c <= '9'))
 	{
@@ -753,94 +1061,6 @@ token_s *parse_token(char **cursor)
 	}
 }
 
-/**
-	token_queue_s Object
-*/
-#define TOKEN_QUEUE_BOUNDARY	16
-typedef struct {
-	token_s **token;
-	int head;
-	int tail;
-} token_queue_s;
-
-/**
-	Enqueue a token_s object in the token queue
-*/
-int enqueue_token(token_queue_s *queue, token_s *token)
-{
-	//Evaluate if the queue has grown beyond it's boundary
-	if((queue->tail % TOKEN_QUEUE_BOUNDARY) == 0)
-	{
-		//Expand the queue to fit more tokens
-		token_s **tmp = realloc(queue->token,
-			(queue->tail + TOKEN_QUEUE_BOUNDARY) * sizeof(token_s*));
-		if(tmp == NULL)
-		{
-			return -1;
-		}
-		queue->token = tmp;
-	}
-	
-	//Add the token to the queue
-	queue->token[queue->tail] = token;
-	queue->tail++;
-
-	return 0;	
-}
-
-/**
-	Dequeue a token_s object from the token queue
-*/
-token_s *dequeue_token(token_queue_s *queue)
-{
-	//Check if the queue is empty
-	if(queue->head >= queue->tail)
-	{
-		//Reset the queue's parameters if it is empty
-		queue->head = 0;
-		queue->tail = 0;
-		if(queue->token != NULL)
-		{
-			free(queue->token);
-		}
-	}
-
-	//Remove a token from the queue and return it
-	token_s *tok = queue->token[queue->head];
-	queue->head++;
-	return tok;
-}
-
-/**
-	token_queue_s Object Constructor
-*/
-token_queue_s *new_token_queue(void)
-{
-	//Allocate an empty token_queue_s object
-	token_queue_s *queue = malloc(sizeof(token_queue_s));
-	if(queue == NULL)
-	{
-		return NULL;
-	}
-	
-	queue->token = NULL;
-	queue->tail = 0;
-	queue->head = 0;
-	
-	return queue;
-}
-
-/**
-	token_queue_s Object Destructor
-*/
-void free_token_queue(token_queue_s *queue)
-{
-	if(queue->token != NULL)
-	{
-		free(queue->token);
-	}
-	free(queue);
-}
 
 /**
 	Parse an equation into a sequeuce of tokens stored in a queue
@@ -897,6 +1117,12 @@ int main(int argc, char *argv[])
 //	printf("%f\n", old_shunting_yard(argv[1]));
 
 	token_queue_s *tokenQueue = tokenize_equation(argv[1]);
+	if(tokenQueue == NULL)
+	{
+		return EXIT_FAILURE;
+	}
+
+	token_queue_s *outputQueue = new_shunting_yard(tokenQueue);
 
 	return EXIT_SUCCESS;
 }
