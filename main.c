@@ -1,5 +1,6 @@
 //Stolen From: 
 //https://web.archive.org/web/20120806183037/http://en.literateprograms.org/Special:DownloadCode/Shunting_yard_algorithm_(C)
+#define _GNU_SOURCE
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -447,17 +448,32 @@ operation_s *get_op(char ch)
 	token Object
 */
 typedef struct {
-	bool variable;
-	bool function;
-	bool constant;
-	bool operator;
+//	bool variable;
+//	bool function;
+//	bool constant;
+//	bool operator;
+	enum {
+		VARIABLE_TOKEN,
+		FUNCTION_TOKEN,
+		CONSTANT_TOKEN,
+		OPERATOR_TOKEN,
+		UNDEFINED_TOKEN
+	} type;
 	char *text;
 	int length;
 }token_s;
 token_s token_prototype = {
-	.variable = false, .function = false, .constant = false, .operator = false, 
+//	.variable = false, .function = false, .constant = false, .operator = false, 
+	.type = UNDEFINED_TOKEN,
 	.text = "", .length = 0
 };
+
+typedef enum {
+	INVALID_TOKEN,
+	VALID_TOKEN,
+	NEGATIVE_TOKEN
+} token_validator_e;
+
 token_s *new_token(void);
 void free_token(token_s *token);
 char *new_token_text(char *expr, int length);
@@ -495,7 +511,7 @@ void free_token_stack(token_stack_s *stack);
 token_s *parse_name(char **cursor);
 token_s *parse_number(char **cursor);
 token_s *parse_operator(char **cursor);
-token_s *parse_token(char **cursor);
+token_s *parse_token(char **cursor, token_validator_e isNeg);
 token_queue_s *tokenize_equation(char *expr);
 
 token_queue_s *new_shunting_yard(token_queue_s *tokenQueue);
@@ -762,19 +778,26 @@ token_queue_s *new_shunting_yard(token_queue_s *tokenQueue)
 
 		//Push numeric constants, variable names, and function names
 		//	 directly to the output queue
-		if((token->variable == true) ||
-			(token->constant == true) ||
-			(token->function == true))
+		
+//		if((token->variable == true) ||
+//			(token->constant == true) ||
+//			(token->function == true))
+		switch(token->type)
 		{
+			case VARIABLE_TOKEN:
+			case CONSTANT_TOKEN:
+			case FUNCTION_TOKEN:
 			if(enqueue_token(outputQueue, token) < 0)
 			{
 				return NULL;
 			}
-		}
+			break;
+//		}
 
 		//Push operator to the operator stack
-		else if((token->operator == true))
-		{
+//		else if((token->operator == true))
+//		{
+			case OPERATOR_TOKEN:
 			if(token->text[0] == ')')
 			{
 				//Find the matching '(' in the operator stack
@@ -818,6 +841,10 @@ token_queue_s *new_shunting_yard(token_queue_s *tokenQueue)
 
 			//Push it real good
 			push_token(operatorStack, token);
+			break;			
+
+			default:
+			return NULL;
 		}
 	}
 
@@ -858,15 +885,17 @@ token_s *parse_name(char **cursor)
 		{
 			//This is the end of the function name token.
 			//It is not valid if the token is a variable name
-			if(token->variable == true)
+//			if(token->variable == true)
+			if(token->type == VARIABLE_TOKEN)
 			{
 				return NULL;
 			}
 			
 			//Do not include '(' as part of the function name
-			token->text = *cursor;
+			token->text = new_token_text(*cursor, token->length);
 			*cursor = c;
-			token->function = true;
+//			token->function = true;
+			token->type = FUNCTION_TOKEN;
 			return token;
 		}
 
@@ -883,7 +912,8 @@ token_s *parse_name(char **cursor)
 		else if((*c == '.') || (*c == '[') || (*c == ']'))
 		{
 			//This is a definite indicator that the token is a variable name
-			token->variable = true;
+//			token->variable = true;
+			token->type = VARIABLE_TOKEN;
 		}
 		
 		//The token is not valid
@@ -900,7 +930,8 @@ token_s *parse_name(char **cursor)
 	//Do not include the termator or space in the token
 	token->text = new_token_text(*cursor, token->length);
 	*cursor = c;
-	token->variable = true;
+//	token->variable = true;
+	token->type = VARIABLE_TOKEN;
 	return token;
 }
 
@@ -915,7 +946,13 @@ token_s *parse_number(char **cursor)
 	{
 		return NULL;
 	}
-	
+
+	//If the first character is '-', the second character must be 0-9
+	if((**cursor == '-') && ((*(*cursor + 1) < '0') || (*(*cursor + 1) > '9')))
+	{
+		return NULL;
+	}
+ 
 	//Create a token object
 	token_s *token = new_token();
 	if(token == NULL)
@@ -925,7 +962,6 @@ token_s *parse_number(char **cursor)
 
 	bool exponent = false;
 	bool point = false;
-	bool neg = false;
 	char *c = *cursor;
 	for( ; (*c != '\0') && !isspace(*c); c++)
 	{
@@ -951,19 +987,20 @@ token_s *parse_number(char **cursor)
 		//	but only as the first character following the 'e'
 		if(*c == '-')
 		{
-			//'-' is only valid for exponents
-			if(exponent == false)
+			//'-' is only valid at the beginning of the string
+			if(c == *cursor)
+			{
+				//Valid	
+			}
+			//or immediatly following the 'E' of an exponent
+			else if((*(c - 1) == 'E') || (*(c - 1) == 'e'))
+			{
+				//Valid
+			}
+			else
 			{
 				return NULL;
 			}
-			
-			//Only one '-' is allowed in the token
-			if(neg == true)
-			{
-				return NULL;
-			}
-		
-			neg = true;
 		}
 		
 		//'.' is a valid character
@@ -990,9 +1027,10 @@ token_s *parse_number(char **cursor)
 
 	//The token is a valid numeric constant
 	//Do not include the termator or space in the token
-	token->text = new_token_text(*cursor, token->length);
+	token->text = new_token_text(*cursor, token->length - 1);
 	*cursor = c;
-	token->constant = true;
+//	token->constant = true;
+	token->type = CONSTANT_TOKEN;
 	return token;
 }
 
@@ -1020,12 +1058,13 @@ token_s *parse_operator(char **cursor)
 	token->length = 1;
 	token->text = new_token_text(*cursor, token->length);
 	(*cursor)++;
-	token->operator = true;
+//	token->operator = true;
+	token->type = OPERATOR_TOKEN;
 	return token;
 }
 
 
-token_s *parse_token(char **cursor)
+token_s *parse_token(char **cursor, token_validator_e isNeg)
 {
 	char c = **cursor;
 	//Check if the token is a variable name or a function name
@@ -1039,14 +1078,15 @@ token_s *parse_token(char **cursor)
 
 	//TODO: Differentiate between '-' the operator, and '-' the value sign
 	//Check if the token is a numeric constant
-	else if((c >= '0') && (c <= '9'))
+	if(((c == '-') && (isNeg == NEGATIVE_TOKEN)) ||
+		((c >= '0') && (c <= '9')))
 	{
 		//The token is a numeric constant
 		return parse_number(cursor);
 	}
 
 	//Check if the token is an operator
-	else if((c == '+') || (c == '-') ||
+	if((c == '+') || ((c == '-') && (isNeg == NEGATIVE_TOKEN)) ||
 		(c == '*') || (c == '/') ||
 		(c == '^') || (c == '%') || 
 		(c == '(') || (c == ')') || (c == ','))
@@ -1055,12 +1095,112 @@ token_s *parse_token(char **cursor)
 		return parse_operator(cursor);
 	}
 
-	else	
+	return NULL;
+}
+
+
+/**
+	Append the text value of a numeric constant to a '-'
+	Frees the original string
+*/
+char *negate_constant_text(char *text)
+{
+	if(text == NULL)
 	{
 		return NULL;
 	}
+
+	char *tempConst;
+	asprintf(&tempConst, "-%s", text);
+	free(text);
+
+	return tempConst;
 }
 
+
+/**
+	Weak validator: Returns false if a token arrives out of sequence
+	also differentaites '-' between difference operator
+*/
+token_validator_e validate_token(token_s *token, token_s *lastToken)
+{
+/*
+	var  con  fun  op   nvar ncon nfun nop
+     0    0    0    1    1    1    1    if(nop == '(' || op == ')')
+     0    0    1    0    1    1    1    0  
+     0    1    0    0    0    0    0    1
+     1    0    0    0    0    0    0    1
+*/
+	if(lastToken == NULL)
+	{
+		switch(token->type)
+		{
+			case VARIABLE_TOKEN:
+			case CONSTANT_TOKEN:
+			case FUNCTION_TOKEN:
+			return VALID_TOKEN;
+
+//			case OPERATOR_TOKEN:
+//			if(token->text[0] == '-')
+//			{
+//				return NEGATIVE_TOKEN;
+//			}
+		
+			default:
+			return INVALID_TOKEN;
+		}
+	}
+
+	switch(lastToken->type)
+	{
+		case VARIABLE_TOKEN:
+		case CONSTANT_TOKEN:
+		case FUNCTION_TOKEN:
+		if(token->type == OPERATOR_TOKEN)
+		{
+			return VALID_TOKEN;
+		}
+		return INVALID_TOKEN;
+
+		case OPERATOR_TOKEN:
+		switch(lastToken->text[0])
+		{
+			case ')':
+			if(operator_prec(token->text) > 0)
+			{
+				return VALID_TOKEN;
+			}
+			return INVALID_TOKEN;
+	
+			default:
+			switch(token->type)
+			{
+				case VARIABLE_TOKEN:
+				case CONSTANT_TOKEN:
+				case FUNCTION_TOKEN:
+				return VALID_TOKEN;
+		
+				case OPERATOR_TOKEN:
+				if(token->text[0] == '(')
+				{
+					return INVALID_TOKEN;
+				}
+				if(token->text[0] == '-')
+				{
+					return NEGATIVE_TOKEN;
+				}
+						
+				default:
+				return INVALID_TOKEN;
+			}
+		}
+
+		default:
+		return INVALID_TOKEN; 
+	}
+
+	return INVALID_TOKEN;	
+}
 
 /**
 	Parse an equation into a sequeuce of tokens stored in a queue
@@ -1075,6 +1215,8 @@ token_queue_s *tokenize_equation(char *expr)
 	}
 	
 	//Parser loop
+	token_s *lastToken = NULL;
+	token_validator_e valid = NEGATIVE_TOKEN;
 	char *cursor = expr;
 	do 
 	{
@@ -1086,18 +1228,34 @@ token_queue_s *tokenize_equation(char *expr)
 		}
 
 		//Parse the token under cursor
-		token_s *token = parse_token(&cursor);
+		token_s *token = parse_token(&cursor, valid);
 		if(token == NULL)
 		{
 			fprintf(stderr, "Unable to parse a token\n");
 			return NULL;
 		}
+			
+		valid = validate_token(token, lastToken);
+		switch(valid)
+		{
+			case VALID_TOKEN:
+			break;
+			
+			case NEGATIVE_TOKEN:
+			goto NEXT_TOKEN;
 		
+			case INVALID_TOKEN:
+			return NULL;
+		}
+	
 		//Enqueue the token
 		if(enqueue_token(tokenQueue, token) < 0)
 		{
 			return NULL;
 		}
+		
+		NEXT_TOKEN:
+		lastToken = token;
 	}	
 	while(*cursor != '\0');
 
