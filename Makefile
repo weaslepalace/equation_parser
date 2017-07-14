@@ -17,7 +17,7 @@ OBJECTS := $(patsubst %.c, $(OBJDIR)/%.o, $(SOURCES))
 
 CC      = gcc
 CFLAGS  = -g -std=c99 -D_GNU_SOURCE -Wall
-IFLAGS 	:= -I$(INCLUDE_PATH) -I$(INCDIR)
+IFLAGS 	:= -I$(INCDIR)
 LDFLAGS := -L$(LIB_PATH)  -Wl,-rpath=$(LIB_PATH)
 LDLIBS 	= -lm 
 
