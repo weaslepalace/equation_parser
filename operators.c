@@ -81,22 +81,22 @@ bool operator_check(char c)
 
 float execute_add(int nArgs, float *args)
 {
-	return args[0] + args[1];
+	return args[1] + args[0];
 }
 
 float execute_sub(int nArgs, float *args)
 {
-	return args[0] - args[1];
+	return args[1] - args[0];
 }
 
 float execute_mul(int nArgs, float *args)
 {
-	return args[0] * args[1];
+	return args[1] * args[0];
 }
 
 float execute_div(int nArgs, float *args)
 {
-	return args[0] / args[1];
+	return args[1] / args[0];
 }
 
 float execute_mod(int nArgs, float *args)
@@ -108,18 +108,23 @@ float execute_mod(int nArgs, float *args)
 		return NAN;
 	}
 
-	return (int)args[0] % (int)args[1];
+	return (int)args[1] % (int)args[0];
 }
 
 float execute_exp(int nArgs, float *args)
 {
-	return powf(args[0], args[1]);
+	return powf(args[1], args[0]);
 }
 
 
 /**
 	Function executions
 */
+
+float execute_neg(int nArgs, float *args)
+{
+	return -args[0];
+}
 
 float execute_avg(int nArgs, float *args)
 {
@@ -128,7 +133,7 @@ float execute_avg(int nArgs, float *args)
 		return 0;
 	}
 
-	float acc;
+	float acc = 0;
 	for(int i = 0; i < nArgs; i++)
 	{
 		acc += args[i];	
@@ -138,7 +143,7 @@ float execute_avg(int nArgs, float *args)
 
 float execute_min(int nArgs, float *args)
 {
-	int min = args[0];
+	float min = args[0];
 	for(int i = 1; i < nArgs; i++)
 	{
 		if(args[i] < min)
@@ -152,7 +157,7 @@ float execute_min(int nArgs, float *args)
 
 float execute_max(int nArgs, float *args)
 {
-	int max = args[0];
+	float max = args[0];
 	for(int i = 1; i < nArgs; i++)
 	{
 		if(args[i] > max)
@@ -201,6 +206,10 @@ void *reference_operator(char *op)
 */
 void *reference_function(char *func)
 {
+	if(strcmp("neg", func) == 0)
+	{
+		return execute_neg;
+	}
 	if(strcmp("avg", func) == 0)
 	{
 		return execute_avg;

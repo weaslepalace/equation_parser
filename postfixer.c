@@ -79,6 +79,7 @@ typedef struct {
 	int *count;
 } count_stack_s;
 #define COUNT_ARRAY_BOUNDARY  16
+static int nullCount = -1;
 
 /**
 	Push a count value to a count stack
@@ -115,8 +116,8 @@ int pop_count(count_stack_s *stack)
 	if(stack->depth <= 0)
 	{
 		stack->depth = 0;
-		stack->top = NULL;
-
+		stack->top = &nullCount;
+		
 		return -1;
 	}
 
@@ -125,7 +126,7 @@ int pop_count(count_stack_s *stack)
 	stack->depth--;
 	if(stack->depth <= 0)
 	{
-		stack->top = NULL;
+		stack->top = &nullCount;
 	}
 	else
 	{
@@ -157,8 +158,8 @@ equation_s *shunting_yard(token_queue_s *tokenQueue)
 	//Make 2 more stack:
 	//	One to store argument counts to functions
 	//	I have no idea what the other one does, but maybe the url has the answer
-	count_stack_s argCountStack = {.depth = 0, .top = NULL, .count = NULL};
-	count_stack_s mysteryStack = {.depth = 0, .top = NULL, .count = NULL};
+	count_stack_s argCountStack = {.depth = 0, .top = &nullCount, .count = NULL};
+	count_stack_s mysteryStack = {.depth = 0, .top = &nullCount, .count = NULL};
 
 	//Execute the shunting-yard algorithm
 	for(token_s *token = dequeue_token(tokenQueue);

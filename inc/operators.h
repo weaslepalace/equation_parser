@@ -13,6 +13,7 @@ float execute_mul(int nArgs, float *args);
 float execute_div(int nArgs, float *args);
 float execute_mod(int nArgs, float *args);
 float execute_exp(int nArgs, float *args);
+float execute_neg(int nArgs, float *args);
 float execute_avg(int nArgs, float *args);
 float execute_min(int nArgs, float *args);
 float execute_max(int nArgs, float *args);

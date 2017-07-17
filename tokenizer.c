@@ -338,15 +338,10 @@ token_s *parse_name(char **cursor)
 */
 token_s *parse_number(char **cursor)
 {
-	//If the first character is zero, the second character must be '.'
-	//	Otherwise the token is invalid
-	if((**cursor == '0') && (*(*cursor + 1) != '.')) 
-	{
-		return NULL;
-	}
+	char *c = *cursor;
 
 	//If the first character is '-', the second character must be 0-9
-	if((**cursor == '-') && ((*(*cursor + 1) < '0') || (*(*cursor + 1) > '9')))
+	if((*c == '-') && ((*(c + 1) < '0') || (*(c + 1) > '9')))
 	{
 		return NULL;
 	}
@@ -358,9 +353,17 @@ token_s *parse_number(char **cursor)
 		return NULL;
 	}
 
+	//If the first character is zero, the second character must be '.'
+	//	Otherwise, only the zero is valid
+	if((*c == '0') && (*(c + 1) != '.')) 
+	{
+		token->length = 1;
+		c++;
+		goto END_OF_NUMBER;
+	}
+
 	bool exponent = false;
 	bool point = false;
-	char *c = *cursor;
 	for( ; (*c != '\0') && !isspace(*c); c++)
 	{
 		//Decimal digits, of course, are valid
@@ -397,7 +400,7 @@ token_s *parse_number(char **cursor)
 			}
 			else
 			{
-				return NULL;
+				goto END_OF_NUMBER;
 			}
 		}
 		
@@ -466,7 +469,7 @@ token_s *parse_operator(char **cursor)
 }
 
 
-token_s *parse_token(char **cursor, token_validator_e isNeg)
+token_s *parse_token(char **cursor)
 {
 	char c = **cursor;
 	//Check if the token is a variable name or a function name
@@ -479,8 +482,7 @@ token_s *parse_token(char **cursor, token_validator_e isNeg)
 	}
 
 	//Check if the token is a numeric constant
-	if(((c == '-') && (isNeg == NEGATIVE_TOKEN)) ||
-		((c >= '0') && (c <= '9')))
+	if((c >= '0') && (c <= '9'))
 	{
 		//The token is a numeric constant
 		return parse_number(cursor);
@@ -545,6 +547,10 @@ token_validator_e validate_token(token_s *token, token_s *lastToken)
 			{
 				return VALID_TOKEN;
 			}
+			if(token->text[0] == '-')
+			{
+				return NEGATIVE_TOKEN;
+			}
 
 			default:
 			return INVALID_TOKEN;
@@ -603,6 +609,75 @@ token_validator_e validate_token(token_s *token, token_s *lastToken)
 	return INVALID_TOKEN;	
 }
 
+
+/**
+	Create a new token initialized with text and type
+*/
+token_s *make_token(token_type_e type, char *expr, int length)
+{
+	token_s *token = new_token();
+	if(token == NULL)
+	{
+		return NULL;
+	}
+	token->type = type;
+	token->length = length;
+	token->text = new_token_text(expr, length);
+	if(token->text == NULL)
+	{
+		return NULL;
+	}
+
+	return token;
+}
+
+/**
+	Enqueue a call to negate(token) 
+*/
+int enqueue_negate(token_queue_s *tokenQueue, token_s *token)
+{
+	//Enqueue "neg" as a function
+	token_s *negateCall = make_token(FUNCTION_TOKEN, "neg", 3);
+	if(negateCall == NULL)
+	{
+		return -1;
+	}
+	if(enqueue_token(tokenQueue, negateCall) < 0)
+	{
+		return -1;
+	}
+
+	//Enqueue '('
+	token_s *openParen = make_token(OPERATOR_TOKEN, "(", 1);
+	if(openParen == NULL)
+	{
+		return -1;
+	}
+	if(enqueue_token(tokenQueue, openParen) < 0)
+	{
+		return -1;
+	}
+
+	//Enqueue token as the argument to "neg"
+	if(enqueue_token(tokenQueue, token) < 0)
+	{
+		return -1;
+	}
+
+	//Enqueue ')'
+	token_s *closeParen = make_token(OPERATOR_TOKEN, ")", 1);
+	if(closeParen == NULL)
+	{
+		return -1;
+	}
+	if(enqueue_token(tokenQueue, closeParen) < 0)
+	{
+		return -1;
+	}
+
+	return 0;
+}
+
 /**
 	Parse an equation into a sequeuce of tokens stored in a queue
 */
@@ -617,7 +692,8 @@ token_queue_s *tokenize_equation(char *expr)
 	
 	//Parser loop
 	token_s *lastToken = NULL;
-	token_validator_e valid = NEGATIVE_TOKEN;
+	token_validator_e valid = VALID_TOKEN;
+	token_validator_e lastValid = VALID_TOKEN;
 	char *cursor = expr;
 	do 
 	{
@@ -629,7 +705,7 @@ token_queue_s *tokenize_equation(char *expr)
 		}
 
 		//Parse the token under cursor
-		token_s *token = parse_token(&cursor, valid);
+		token_s *token = parse_token(&cursor);
 		if(token == NULL)
 		{
 			fprintf(stderr, "Unable to parse a token\n");
@@ -640,23 +716,33 @@ token_queue_s *tokenize_equation(char *expr)
 		switch(valid)
 		{
 			case VALID_TOKEN:
+			if(lastValid == VALID_TOKEN)
+			{
+				//Enqueue the token
+				if(enqueue_token(tokenQueue, token) < 0)
+				{
+					return NULL;
+				}
+			}
+			else if(lastValid == NEGATIVE_TOKEN)
+			{
+				//Enqueue the token as an argument to a call to negate()
+				if(enqueue_negate(tokenQueue, token) < 0)
+				{
+					return NULL;
+				}
+			}
 			break;
 			
 			case NEGATIVE_TOKEN:
-			goto NEXT_TOKEN;
+			break;
 		
 			case INVALID_TOKEN:
 			return NULL;
 		}
-	
-		//Enqueue the token
-		if(enqueue_token(tokenQueue, token) < 0)
-		{
-			return NULL;
-		}
 		
-		NEXT_TOKEN:
 		lastToken = token;
+		lastValid = valid;
 	}	
 	while(*cursor != '\0');
 

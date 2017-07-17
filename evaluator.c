@@ -302,6 +302,10 @@ float execute_equation(equation_s *eq)
 		{
 			//Push constants and variable immediatly to the result stack
 			case VARIABLE_TERM:
+			if(eq->term[i]->variableLink == NULL)
+			{
+				return NAN;
+			}
 			if(push_result(&result, *eq->term[i]->variableLink) < 0)
 			{
 				return NAN;
@@ -320,14 +324,14 @@ float execute_equation(equation_s *eq)
 				//Pop the number of arguments from the result stack
 				//	need for the function of variable
 				float argList[eq->term[i]->nArgs];
-				for(int i = 0; i < eq->term[i]->nArgs; i++)
+				for(int j = 0; j < eq->term[i]->nArgs; j++)
 				{
 					float arg = pop_result(&result);
 					if(isnan(arg))
 					{
 						return NAN;
 					}
-					argList[i] = arg;
+					argList[j] = arg;
 				}
 				//Execute the operation
 				float res = eq->term[i]->operate(eq->term[i]->nArgs, argList);
@@ -338,6 +342,7 @@ float execute_equation(equation_s *eq)
 					return NAN;
 				}
 			}
+			break;
 	
 			default:
 			return NAN;

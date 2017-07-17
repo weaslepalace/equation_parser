@@ -10,15 +10,16 @@
 /**
 	token Object
 */
+typedef enum {
+	VARIABLE_TOKEN,
+	FUNCTION_TOKEN,
+	CONSTANT_TOKEN,
+	OPERATOR_TOKEN,
+	COUNT_TOKEN,
+	UNDEFINED_TOKEN
+} token_type_e;
 typedef struct {
-	enum {
-		VARIABLE_TOKEN,
-		FUNCTION_TOKEN,
-		CONSTANT_TOKEN,
-		OPERATOR_TOKEN,
-		COUNT_TOKEN,
-		UNDEFINED_TOKEN
-	} type;
+	token_type_e type;
 	int length;
 	char *text;
 }token_s;
@@ -72,7 +73,7 @@ void free_token_stack(token_stack_s *stack);
 token_s *parse_name(char **cursor);
 token_s *parse_number(char **cursor);
 token_s *parse_operator(char **cursor);
-token_s *parse_token(char **cursor, token_validator_e isNeg);
+token_s *parse_token(char **cursor);
 token_queue_s *tokenize_equation(char *expr);
 
 
