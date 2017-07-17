@@ -4,78 +4,12 @@
 #define _TOKENIZER_SOURCE
 
 #include "tokenizer.h"
+#include "operators.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
-
-/**
-	Return the operator precedence
-*/
-int operator_prec(char *op)
-{
-	//Return precedence on single-character operators
-	switch(op[0])
-	{
-		case '^':
-		return 9;
-
-		case '*':
-		return 8;
-
-		case '/':
-		return 8;
-
-		case '%':
-		return 8;
-
-		case '+':
-		return 5;
-
-		case '-':
-		return 5;
-	}
-
-	return 0;
-}
-
-/**
-	Return the operator associativity
-*/
-op_assoc_e operator_assoc(char *op)
-{
-	switch(op[0])
-	{
-		case '^':
-		return RIGHT_ASSOC;
-		
-		case '*':
-		case '/':
-		case '%':
-		case '+':
-		case '-':
-		return LEFT_ASSOC;
-	}
-
-	return NO_ASSOC;
-}
-
-/**
-	Return true if the character is a valid operator
-*/
-bool operator_check(char c)
-{
-	if((c == '+') || (c == '-') ||
-		(c == '*') || (c == '/') ||
-		(c == '^') || (c == '%') || 
-		(c == '(') || (c == ')') || (c == ','))
-	{
-		//The token is an operator
-		return true;
-	}
-	return false;
-}
 
 
 
@@ -131,7 +65,7 @@ char *new_token_text(char *expr, int length)
 
 
 /**
-	Reallocate of allocate an attay of tokens
+	Reallocate of allocate an array of tokens
 */
 #define TOKEN_ARRAY_BOUNDARY	16
 token_s **resize_token_array(token_s **array, int size)
@@ -632,7 +566,8 @@ token_validator_e validate_token(token_s *token, token_s *lastToken)
 		switch(lastToken->text[0])
 		{
 			case ')':
-			if((operator_prec(token->text) > 0) || (token->text[0] == ')'))
+			if((operator_prec(token->text) > 0) ||
+				(token->text[0] == ')') || (token->text[0] == ','))
 			{
 				return VALID_TOKEN;
 			}

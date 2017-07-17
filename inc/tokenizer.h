@@ -8,19 +8,6 @@
 #include <stdbool.h>
 
 /**
-	Operator Helpers
-*/
-typedef enum {
-	RIGHT_ASSOC,
-	LEFT_ASSOC,
-	NO_ASSOC
-}op_assoc_e;
-int operator_prec(char *op);
-bool operator_check(char c);
-op_assoc_e operator_assoc(char *op);
-
-
-/**
 	token Object
 */
 typedef struct {
